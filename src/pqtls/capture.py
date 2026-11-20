@@ -19,7 +19,7 @@ class CaptureError(RuntimeError):
     """OpenSSL capture failure."""
 
 def _cert_der(text: str) -> list[bytes]:
-    result = []
+    result: list[bytes] = []
     for block in PEM_CERT.findall(text):
         body = re.sub(r"-----[^-]+-----|\s+", "", block)
         result.append(base64.b64decode(body, validate=True))
@@ -56,8 +56,7 @@ def measure_live(host: str, port: int = 443, group: str = "X25519",
             break
     certs = _cert_der(transcript)
     baseline = f"{host}:{port}; requested_group={group}"
-    common = dict(baseline=baseline, limits=["Single live connection; environment-specific.",
-                 "OpenSSL diagnostics are not a packet capture."])
+    common = dict(baseline=baseline)
     metrics = [
         Metric(name="certificate_chain_der_bytes", value=sum(map(len, certs)) if certs else None,
                unit="bytes", label=EvidenceLabel.MEASURED, path="live TCP/TLS connection",
