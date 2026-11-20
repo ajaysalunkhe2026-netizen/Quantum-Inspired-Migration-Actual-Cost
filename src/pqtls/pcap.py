@@ -379,7 +379,12 @@ def analyze_pcap(
         else "Client Finished timestamp precedes ClientHello; capture timestamp ordering is invalid."
     )
     full_handshake_verified = (
-        server_certificate and server_certificate_verify and server_finished is not None
+        client_hello is not None
+        and 2 in handshake_types
+        and server_certificate
+        and server_certificate_verify
+        and server_finished is not None
+        and client_finished is not None
     )
     session_kind = "full" if full_handshake_verified and not psk_selected else "unknown"
     session_kind_reason = (
@@ -389,8 +394,9 @@ def analyze_pcap(
             "A PSK identity was selected, but the capture cannot prove that it was a "
             "NewSessionTicket rather than an externally provisioned PSK."
             if psk_selected
-            else "Certificate, CertificateVerify and server Finished were not all "
-            "decoded; TLS 1.3 encrypted handshake data may require a valid key log."
+            else "ClientHello, ServerHello, server Certificate, CertificateVerify and both "
+            "Finished messages were not all decoded; encrypted handshake data may require "
+            "a valid key log."
         )
     )
 
