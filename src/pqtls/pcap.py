@@ -16,6 +16,7 @@ from typing import Any
 from .schema import EvidenceLabel, Metric
 
 FIELD_CANDIDATES = {
+    "frame_number": ("frame.number",),
     "frame_length": ("frame.len",),
     "frame_time": ("frame.time_epoch",),
     "ipv4_length": ("ip.len",),
