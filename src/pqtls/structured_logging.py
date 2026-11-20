@@ -30,7 +30,7 @@ def configure_logging(level: str = "INFO") -> None:
     """Configure root logging with JSON output and a validated level."""
     numeric = getattr(logging, level.upper(), None)
     if not isinstance(numeric, int):
-        raise ValueError(f"Unsupported log level: {level}")
+        raise TypeError(f"Unsupported log level: {level}")
     handler = logging.StreamHandler()
     handler.setFormatter(JsonFormatter())
     root = logging.getLogger()
