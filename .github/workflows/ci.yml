@@ -21,9 +21,15 @@ jobs:
       - run: ruff check .
       - run: black --diff .
       - run: black --check .
-      - run: mypy src/pqtls
-      - run: pip-audit
-      - run: cyclonedx-py environment --output-format JSON --output-file sbom.json
+      - name: Strict mypy
+        if: always()
+        run: mypy src/pqtls
+      - name: Dependency audit
+        if: always()
+        run: pip-audit
+      - name: Generate SBOM
+        if: always()
+        run: cyclonedx-py environment --output-format JSON --output-file sbom.json
       - uses: actions/upload-artifact@v4
         with:
           name: python-sbom
