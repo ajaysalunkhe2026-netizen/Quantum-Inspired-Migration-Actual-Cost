@@ -10,18 +10,18 @@ The `pcap/` directory contains real packet captures generated from controlled Op
 | `tls13-x25519mlkem768-resumed.pcap` | X25519MLKEM768 | Ticket-based PSK resumption |
 | `tls13-x25519-full.pcap` | X25519 | Full certificate handshake |
 
-The generator uses OpenSSL `s_server` and `s_client` on the loopback interface, with `tcpdump` capturing the actual TCP/IP packets. It generates an ephemeral self-signed certificate and a fixture-only HTTP GET request. The private key is never committed. The hybrid full-handshake session exports a TLS 1.3 ticket; the resumed connection reuses that session on the same server process. OpenSSL endpoint output must contain `Reused, TLSv1.3` before the resumed fixture is accepted.
+The generator uses OpenSSL `s_server` and `s_client` on the host runner's loopback interface, with `tcpdump` capturing the actual TCP/IP packets. It generates an ephemeral self-signed certificate and a fixture-only HTTP GET request. The private key is never committed. The hybrid full-handshake session exports a TLS 1.3 ticket; the resumed connection reuses that session on the same server process. OpenSSL endpoint output must contain `Reused, TLSv1.3` before the resumed fixture is accepted.
 
 ## Reproduction
 
-Run on Debian 13 (Trixie) or another environment with OpenSSL 3.5+ supporting both groups, tcpdump, tshark, Python 3.11+, and the project test dependencies:
+Run on a Linux host with OpenSSL 3.5+ supporting both groups, tcpdump, tshark, Python 3.11+, packet-capture capability (`CAP_NET_RAW`), and the project test dependencies:
 
 ```bash
 python scripts/generate_pcap_fixtures.py
 pytest -q tests/test_pcap_integration.py
 ```
 
-The dedicated GitHub Actions workflow runs in Debian Trixie with packet-capture capabilities, validates the captures, uploads an evidence artifact, and commits only validated fixtures to the PR branch. The manifest records OpenSSL/tcpdump/tshark versions, capture interface/filter, endpoint evidence, and SHA-256 digests for each capture and key log.
+The dedicated GitHub Actions workflow uses the hosted runner's host network namespace, grants tcpdump packet-capture capability, validates the captures, uploads an evidence artifact, and commits only validated fixtures to the PR branch. The manifest records OpenSSL/tcpdump/tshark versions, capture interface/filter, endpoint evidence, and SHA-256 digests for each capture and key log.
 
 ## TLS key logs
 
