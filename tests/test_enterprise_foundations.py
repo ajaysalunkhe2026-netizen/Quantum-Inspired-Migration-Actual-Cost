@@ -1,4 +1,5 @@
 """Tests for configuration, host validation, audit integrity and PCAP parsing."""
+
 from __future__ import annotations
 
 import json
@@ -87,9 +88,7 @@ def test_pcap_accounting_uses_dissected_lengths_and_labels_psk(tmp_path, monkeyp
         if command[1] == "-G":
             return SimpleNamespace(returncode=0, stdout=field_listing, stderr="")
         if command[1] == "--version":
-            return SimpleNamespace(
-                returncode=0, stdout="TShark (Wireshark) 4.4.0\n", stderr=""
-            )
+            return SimpleNamespace(returncode=0, stdout="TShark (Wireshark) 4.4.0\n", stderr="")
         return SimpleNamespace(
             returncode=0,
             stdout="1|1514|1500||120|15|10|32|64|0\n",
