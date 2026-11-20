@@ -3,13 +3,14 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from pathlib import Path
 
 import typer
 from rich import print
 
 from .audit import append_audit_event, verify_audit_log
-from .capture import CaptureError, measure_live
+from .capture import CaptureError, CaptureTimeoutError, measure_live
 from .config import load_settings
 from .pcap import PcapError, analyze_pcap
 from .report import compare_values, load_document, markdown, write_csv, write_json
@@ -35,40 +36,72 @@ def measure(
         settings = load_settings(
             config,
             overrides={
-                key: value for key, value in {
-                    "host": host, "port": port, "timeout_seconds": timeout,
+                key: value
+                for key, value in {
+                    "host": host,
+                    "port": port,
+                    "timeout_seconds": timeout,
                     "output_directory": out.parent if out else None,
-                }.items() if value is not None
+                }.items()
+                if value is not None
             },
         )
         target = settings.host
         if not target:
             raise ValueError("Set --host, host in YAML, or PQTLS_HOST.")
         output = out or settings.output_directory / "measurement.json"
-        record = measure_live(
-            target, settings.port, group, settings.timeout_seconds,
-            openssl=settings.openssl_binary, output_dir=str(settings.output_directory),
-        )
+
+        record = None
+        for attempt in range(settings.retries + 1):
+            try:
+                record = measure_live(
+                    target,
+                    settings.port,
+                    group,
+                    settings.timeout_seconds,
+                    openssl=settings.openssl_binary,
+                    output_dir=str(settings.output_directory),
+                )
+                break
+            except CaptureTimeoutError:
+                if attempt >= settings.retries:
+                    raise
+                logger.warning(
+                    "Transient OpenSSL timeout; retrying",
+                    extra={"event": "capture_retry", "attempt": attempt + 1, "target": target},
+                )
+                time.sleep(min(2**attempt, 5))
+
+        if record is None:
+            raise CaptureError("Measurement did not produce a record")
         document = EvidenceDocument(records=[record])
         write_json(document, output)
-        audit_hash = append_audit_event(settings.audit_log, {
-            "event_type": "measurement_completed",
-            "measurement_id": record.id,
-            "target": record.target,
-            "port": record.port,
-            "evidence_file": str(output),
-            "raw_transcript": record.raw_log_path,
-            "metric_names": [metric.name for metric in record.metrics],
-        })
+        audit_hash = append_audit_event(
+            settings.audit_log,
+            {
+                "event_type": "measurement_completed",
+                "measurement_id": record.id,
+                "target": record.target,
+                "port": record.port,
+                "evidence_file": str(output),
+                "raw_transcript": record.raw_log_path,
+                "metric_names": [metric.name for metric in record.metrics],
+            },
+        )
     except (CaptureError, ValueError, OSError) as exc:
         logger.exception("Measurement failed", extra={"event": "measurement_failed"})
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=2) from exc
 
-    logger.info("Measurement completed", extra={
-        "event": "measurement_completed", "measurement_id": record.id,
-        "target": record.target, "duration_ms": record.duration_ms,
-    })
+    logger.info(
+        "Measurement completed",
+        extra={
+            "event": "measurement_completed",
+            "measurement_id": record.id,
+            "target": record.target,
+            "duration_ms": record.duration_ms,
+        },
+    )
     print(f"[green]Evidence written:[/green] {output}")
     print(f"Negotiated group: {record.negotiated_group or 'unverified'}")
     print(f"Audit event hash: {audit_hash}")
@@ -87,13 +120,16 @@ def pcap_command(
         result = analyze_pcap(source, settings.tshark_binary, keylog)
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(result, indent=2), encoding="utf-8")
-        digest = append_audit_event(settings.audit_log, {
-            "event_type": "pcap_analysis_completed",
-            "source": source.name,
-            "output": str(out),
-            "packet_count": result["packet_count"],
-            "keylog_used": keylog is not None,
-        })
+        digest = append_audit_event(
+            settings.audit_log,
+            {
+                "event_type": "pcap_analysis_completed",
+                "source": source.name,
+                "output": str(out),
+                "packet_count": result["packet_count"],
+                "keylog_used": keylog is not None,
+            },
+        )
     except (PcapError, ValueError, OSError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=2) from exc
