@@ -68,7 +68,7 @@ def capture_connection(
     capture_command = [
         require_tool("tcpdump"),
         "-i",
-        "any",
+        "lo",
         "-nn",
         "-s",
         "0",
@@ -243,7 +243,7 @@ def fixture_entry(
         "openssl_version": openssl_version,
         "tcpdump_version": tcpdump_version,
         "tshark_version": tshark_version,
-        "capture_interface": "any",
+        "capture_interface": "lo",
         "capture_filter": f"tcp port {port}",
         "capture_time_utc": datetime.now(UTC).isoformat(),
     }
