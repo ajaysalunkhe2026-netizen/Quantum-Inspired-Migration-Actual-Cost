@@ -12,11 +12,21 @@ Each audit event is a canonical JSON object linked to the previous event by SHA-
 
 ## Offline PCAP
 
-Install tshark and use `pqtls pcap` (added in the API layer in this branch). An optional TLS key log must be a regular file with mode 0600 or stricter. Treat it as a secret: it can decrypt captured sessions. Never upload it to issue trackers or public artifacts.
+Install tshark and use `pqtls pcap`. An optional TLS key log must be a regular file with mode 0600 or stricter. Treat it as a secret: it can decrypt captured sessions. Never upload it to issue trackers or public artifacts.
 
-The PCAP adapter discovers field availability from the installed tshark build. It emits null plus a reason when fields are unavailable. Packet byte counts include retransmissions and exclude link-layer headers. Capture drops, offload, capture location, and direction attribution must be documented for each study.
+The adapter discovers field availability from the installed tshark build. It emits null plus a reason when fields are unavailable. IPv4/IPv6 byte totals describe captured IP packets, include retransmissions, and exclude link-layer headers. TCP payload sequence ranges are deduplicated independently by TCP stream and direction; captured payload minus unique sequence coverage is reported as duplicate/retransmitted payload. Direction is attributed from the observed ClientHello or initial SYN where available.
 
-PSK selection is not sufficient to prove a resumed session: external PSKs can also be selected. The adapter reports the observation without overclaiming full/resumed classification.
+TLS record bytes and TLS handshake-message bytes are separate protocol-layer measurements. Record lengths include the 5-byte record header; handshake message lengths include the 4-byte handshake header. They are not added to IP totals. TShark's TCP stream dissector performs the protocol reassembly; the adapter reports sequence coverage rather than exporting reconstructed application payload.
+
+Handshake timing is derived from capture timestamps: first ClientHello to server Finished, and first ClientHello to client Finished. These are capture-point intervals, not endpoint processing time or pure one-way latency. Missing events or timestamps remain null with an explicit reason.
+
+A server-direction ServerHello key-share group is reported when the installed dissector exposes it. Key-share payload bytes exclude extension/vector framing. CertificateVerify signature bytes require successful TLS 1.3 decryption and supported dissector fields.
+
+A decoded server Certificate + CertificateVerify + server Finished is evidence for a full certificate handshake. PSK selected identity alone is not proof of ticket-based resumption: external PSKs can also be selected. Such sessions remain `unknown` until ticket provenance can be established. No ticket-based resumed classification is currently claimed.
+
+## Fixture policy
+
+Real hybrid-PQC PCAP fixtures are not included yet. Unit tests use mocked tshark rows and synthetic sequence ranges only; they are not represented as real captures. See `tests/fixtures/README.md` for the evidence and provenance required before adding versioned packet captures.
 
 ## API and metrics
 
@@ -28,10 +38,10 @@ The multi-stage image installs runtime tools, drops root privileges, and uses a 
 
 ## Remaining production gates
 
-- Validate tshark field names and decrypted handshake extraction against versioned PCAP fixtures from supported Wireshark releases.
-- Add server/client direction attribution, retransmission-aware unique-byte accounting, TCP stream reassembly and capture-drop reporting.
-- Distinguish TLS 1.3 resumption tickets from external PSKs using controlled full/resumed test fixtures.
-- Separate ClientHello-to-ServerHello, Finished, and application-ready timing using protocol events rather than subprocess wall time.
+- Add real, versioned full and ticket-resumed TLS 1.3 PCAP fixtures from controlled hybrid-PQC endpoints, with capture provenance and expected dissector output.
+- Validate tshark field names, TCP reassembly behavior and timing extraction against each supported Wireshark release.
+- Distinguish ticket resumption from external PSKs using ticket provenance or controlled endpoint-side session metadata; do not infer it from PSK selection alone.
+- Add capture-drop reporting and validate retransmission accounting under packet loss, reordering, IPv4/IPv6 and sequence wraparound.
 - Add signed audit checkpoints, external immutable storage, authentication/authorization, rate limiting and tenant isolation before exposing the API.
 - Pin dependencies with hashes, run vulnerability scans and publish an SBOM in release CI.
 - Meet a measured coverage target and complete independent security review before production claims.
