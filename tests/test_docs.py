@@ -57,11 +57,11 @@ class DocumentationIntegrityTests(unittest.TestCase):
         self.assertIn("not an observation", text)
         self.assertIn("Specification-derived arithmetic; not measured", text)
 
-    def test_repository_is_documentation_only(self):
+    def test_repository_is_a_python_package(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8")
-        self.assertIn("documentation only", readme.lower())
-        self.assertIn("No runtime dependencies", requirements)
+        self.assertIn("Python package", readme)
+        self.assertTrue((ROOT / "pyproject.toml").is_file())
+        self.assertTrue((ROOT / "src/pqtls/cli.py").is_file())
 
 
 if __name__ == "__main__":
