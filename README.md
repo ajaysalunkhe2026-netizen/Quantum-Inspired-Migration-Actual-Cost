@@ -1,6 +1,6 @@
 # Quantum-Inspired-Migration-Actual-Cost
 
-Evidence-first TLS 1.3 post-quantum migration measurement. The project is a research/engineering tool under active development, not a certification or production-readiness claim.
+Evidence-first TLS 1.3 post-quantum migration measurement. This repository is now a Python package and CLI, with enterprise-oriented foundations under active development. It is not a certification or production-readiness claim.
 
 > No synthetic metrics. A requested group is not a negotiated group. A null metric is not zero.
 
