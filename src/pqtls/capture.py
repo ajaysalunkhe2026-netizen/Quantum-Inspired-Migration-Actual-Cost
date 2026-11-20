@@ -12,15 +12,21 @@ from pathlib import Path
 
 from .schema import EvidenceLabel, HandshakeRecord, Metric
 
-PEM_CERT = re.compile(r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", re.S)
+PEM_CERT = re.compile(
+    r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", re.DOTALL
+)
 NEGOTIATED = (
-    re.compile(r"Negotiated TLS1?\.3 group:\s*([A-Za-z0-9_-]+)", re.I),
-    re.compile(r"Server Temp Key:\s*([^\r\n]+)", re.I),
+    re.compile(r"Negotiated TLS1?\.3 group:\s*([A-Za-z0-9_-]+)", re.IGNORECASE),
+    re.compile(r"Server Temp Key:\s*([^\r\n]+)", re.IGNORECASE),
 )
 
 
 class CaptureError(RuntimeError):
     """OpenSSL capture failure."""
+
+
+class CaptureTimeoutError(CaptureError):
+    """OpenSSL capture exceeded its configured timeout."""
 
 
 def _cert_der(text: str) -> list[bytes]:
@@ -85,7 +91,7 @@ def measure_live(
             check=False,
         )
     except subprocess.TimeoutExpired as exc:
-        raise CaptureError(f"OpenSSL timed out after {timeout}s") from exc
+        raise CaptureTimeoutError(f"OpenSSL timed out after {timeout}s") from exc
 
     duration_ms = (time.perf_counter() - started) * 1000
     transcript = process.stdout + "\n" + process.stderr
