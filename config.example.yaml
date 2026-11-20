@@ -1,0 +1,14 @@
+# Example operator configuration. CLI currently accepts equivalent explicit flags.
+target:
+  host: "your-pqc-enabled-server.example"
+  port: 443
+measurement:
+  tls_version: "1.3"
+  requested_groups:
+    - "X25519"
+    - "X25519MLKEM768"
+  timeout_seconds: 15
+evidence:
+  output_directory: "results"
+  require_negotiation_verification: true
+  preserve_raw_transcript: true
