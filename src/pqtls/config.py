@@ -1,4 +1,5 @@
 """Layered YAML, environment and CLI configuration with explicit precedence."""
+
 from __future__ import annotations
 
 import os
@@ -30,6 +31,7 @@ class Settings(BaseModel):
         if value is None:
             return value
         from .security import normalize_host
+
         return normalize_host(value)
 
 
