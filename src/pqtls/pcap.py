@@ -141,6 +141,19 @@ def _seconds(value: str | None) -> float | None:
         return None
 
 
+def _normalize_group(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.casefold()
+    if "x25519" in normalized and "mlkem768" in normalized:
+        return "X25519MLKEM768"
+    if "x25519" in normalized or "0x001d" in normalized or normalized.strip() == "29":
+        return "X25519"
+    if "0x11ec" in normalized or normalized.strip() == "4588":
+        return "X25519MLKEM768"
+    return value
+
+
 def _metric(
     name: str,
     value: float | None,
@@ -168,6 +181,7 @@ def analyze_pcap(
     pcap_path: str | Path,
     tshark: str = "tshark",
     keylog_path: str | Path | None = None,
+    endpoint_session_reused: bool | None = None,
 ) -> dict[str, Any]:
     """Analyze TCP streams and decoded TLS events without estimating missing data.
 
@@ -260,11 +274,8 @@ def analyze_pcap(
         ipv4 = _row_values(row, index, "ipv4_length")
         ipv6 = _row_values(row, index, "ipv6_payload_length")
         totals["frame_bytes"] += sum(frame)
-        totals["ip_bytes"] += sum(ipv4) + sum(length + 40 for length in ipv6)
         if frame:
             observed.add("frame_bytes")
-        if ipv4 or ipv6:
-            observed.add("ip_bytes")
 
         stream_text = _row_text(row, index, "tcp_stream")
         src = _row_text(row, index, "ip_src") or _row_text(row, index, "ipv6_src")
@@ -273,27 +284,33 @@ def analyze_pcap(
         dst_port = _row_text(row, index, "tcp_dstport")
         stream = int(stream_text) if stream_text and stream_text.isdigit() else None
         dst_endpoint = f"{dst or '?'}:{dst_port or '?'}"
+        packet_ip_bytes = sum(ipv4) + sum(length + 40 for length in ipv6)
+        if stream is not None:
+            totals["ip_bytes"] += packet_ip_bytes
+            if ipv4 or ipv6:
+                observed.add("ip_bytes")
         tcp_len_values = _row_values(row, index, "tcp_len")
         if _row_text(row, index, "tcp_retransmission") or _row_text(
             row, index, "tcp_fast_retransmission"
         ):
             totals["tcp_retransmission_packets"] += 1
         seq_values = _row_values(row, index, "tcp_seq")
-        if stream is not None and src and dst and src_port and dst_port and tcp_len_values:
+        if stream is not None and src and dst and src_port and dst_port:
             key = (stream, src, src_port, dst, dst_port)
-            payload_len = sum(tcp_len_values)
             direction = direction_totals.setdefault(
                 key, {"ip_bytes": 0, "captured_payload_bytes": 0, "unique_payload_bytes": 0}
             )
-            direction["ip_bytes"] += sum(ipv4) + sum(length + 40 for length in ipv6)
-            direction["captured_payload_bytes"] += payload_len
-            totals["tcp_payload_captured_bytes"] += payload_len
-            if seq_values:
-                ranges = sequence_ranges.setdefault(key, [])
-                unique = _insert_sequence_range(ranges, seq_values[0], payload_len)
-                direction["unique_payload_bytes"] += unique
-                totals["tcp_payload_unique_bytes"] += unique
-                totals["tcp_payload_retransmitted_bytes"] += payload_len - unique
+            direction["ip_bytes"] += packet_ip_bytes
+            payload_len = sum(tcp_len_values)
+            if tcp_len_values:
+                direction["captured_payload_bytes"] += payload_len
+                totals["tcp_payload_captured_bytes"] += payload_len
+                if seq_values:
+                    ranges = sequence_ranges.setdefault(key, [])
+                    unique = _insert_sequence_range(ranges, seq_values[0], payload_len)
+                    direction["unique_payload_bytes"] += unique
+                    totals["tcp_payload_unique_bytes"] += unique
+                    totals["tcp_payload_retransmitted_bytes"] += payload_len - unique
             syn = _row_values(row, index, "tcp_syn")
             ack = _row_values(row, index, "tcp_ack")
             if client_endpoint is None and syn and syn[0] == 1 and (not ack or ack[0] == 0):
@@ -330,8 +347,10 @@ def analyze_pcap(
             for handshake_type in types:
                 handshake_events.append((handshake_type, timestamp, src, src_port, dst_endpoint))
         if 2 in types:
-            negotiated_group = _row_text(row, index, "key_share_group") or negotiated_group
-        if _row_text(row, index, "psk_selected_identity") is not None:
+            negotiated_group = (
+                _normalize_group(_row_text(row, index, "key_share_group")) or negotiated_group
+            )
+        if 2 in types and _row_text(row, index, "psk_selected_identity") is not None:
             psk_selected = True
 
     client_finished: float | None = None
@@ -386,18 +405,42 @@ def analyze_pcap(
         and server_finished is not None
         and client_finished is not None
     )
-    session_kind = "full" if full_handshake_verified and not psk_selected else "unknown"
+    resumed_handshake_verified = (
+        endpoint_session_reused is True
+        and psk_selected
+        and client_hello is not None
+        and 2 in handshake_types
+        and server_finished is not None
+        and client_finished is not None
+        and not server_certificate
+        and not server_certificate_verify
+    )
+    session_kind = (
+        "full"
+        if full_handshake_verified and not psk_selected
+        else "resumed"
+        if resumed_handshake_verified
+        else "unknown"
+    )
     session_kind_reason = (
         None
-        if session_kind == "full"
+        if session_kind in {"full", "resumed"}
         else (
-            "A PSK identity was selected, but the capture cannot prove that it was a "
-            "NewSessionTicket rather than an externally provisioned PSK."
+            "A PSK identity was selected, but endpoint session-reuse confirmation was not "
+            "provided; the capture alone cannot prove ticket-based resumption or exclude "
+            "an externally provisioned PSK."
             if psk_selected
             else "ClientHello, ServerHello, server Certificate, CertificateVerify and both "
             "Finished messages were not all decoded; encrypted handshake data may require "
             "a valid key log."
         )
+    )
+    session_kind_evidence = (
+        "pcap_handshake_messages"
+        if session_kind == "full"
+        else "pcap_psk_selection_plus_endpoint_session_reuse_confirmation"
+        if session_kind == "resumed"
+        else "insufficient"
     )
 
     def metric(
@@ -551,6 +594,8 @@ def analyze_pcap(
         "tcp_directional_accounting": directional,
         "session_kind": session_kind,
         "session_kind_reason": session_kind_reason,
+        "session_kind_evidence": session_kind_evidence,
+        "endpoint_session_reused_evidence": endpoint_session_reused,
         "psk_selected_identity_observed": psk_selected,
         "session_kind_observation": (
             "psk_selected_identity_observed" if psk_selected else "no_psk_selection_observed"
