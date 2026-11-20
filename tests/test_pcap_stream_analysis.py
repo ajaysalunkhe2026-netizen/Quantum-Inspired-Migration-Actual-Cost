@@ -120,7 +120,7 @@ def test_pcap_extracts_tls13_events_and_stream_directions(tmp_path, monkeypatch)
     metrics = {item["name"]: item for item in result["metrics"]}
 
     assert result["session_kind"] == "full"
-    assert result["negotiated_group"] == "x25519_mlkem768"
+    assert result["negotiated_group"] == "X25519MLKEM768"
     assert result["clienthello_to_server_finished_ms"] == pytest.approx(200.0)
     assert result["clienthello_to_client_finished_ms"] == pytest.approx(250.0)
     assert metrics["certificate_verify_signature_bytes"]["value"] == 64
