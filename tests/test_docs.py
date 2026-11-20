@@ -46,7 +46,7 @@ class DocumentationIntegrityTests(unittest.TestCase):
 
     def test_wire_notes_state_measurement_boundary(self):
         text = (ROOT / "docs/wire-size-notes.md").read_text(encoding="utf-8")
-        for phrase in ("Specification-derived", "not a packet-capture result",
+        for phrase in ("Specification-derived", "or a packet-capture result",
                        "not a like-for-like P-256 hybrid group comparison",
                        "TLS record bytes", "TCP/IP bytes"):
             with self.subTest(phrase=phrase):
