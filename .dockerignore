@@ -1,0 +1,14 @@
+.git
+.github
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.venv
+__pycache__
+*.py[cod]
+results
+*.pcap
+*.pcapng
+*.keys
+*.keylog
+.env

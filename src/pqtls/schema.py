@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 class EvidenceLabel(str, Enum):
     MEASURED = "Measured"
+    NOT_MEASURED = "Not measured"
     SPECIFICATION_DERIVED = "Specification-derived"
     CALCULATED = "Calculated"
     EXAMPLE = "Example"
@@ -36,6 +37,10 @@ class Metric(BaseModel):
             raise ValueError("null metrics require not_measured_reason")
         if self.value is not None and self.not_measured_reason:
             raise ValueError("valued metrics cannot have not_measured_reason")
+        if self.label == EvidenceLabel.MEASURED and self.value is None:
+            raise ValueError("Null metrics cannot be labeled Measured")
+        if self.label == EvidenceLabel.NOT_MEASURED and self.value is not None:
+            raise ValueError("Not measured metrics cannot carry a value")
         if self.label == EvidenceLabel.MEASURED and self.value is not None and not self.source:
             raise ValueError("Measured metrics require a source artifact")
         return self
@@ -46,7 +51,7 @@ class HandshakeRecord(BaseModel):
 
     schema_version: str = "1.0"
     id: str
-    captured_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    captured_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     target: str
     port: int
     tls_version: str | None = None
@@ -68,6 +73,6 @@ class EvidenceDocument(BaseModel):
 
     schema_version: str = "1.0"
     project: str = "Quantum-Inspired-Migration-Actual-Cost"
-    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     records: list[HandshakeRecord]
     metadata: dict[str, Any] = Field(default_factory=dict)

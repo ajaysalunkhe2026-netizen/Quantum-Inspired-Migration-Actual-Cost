@@ -1,106 +1,124 @@
 # Quantum-Inspired-Migration-Actual-Cost
 
-**Evidence-first TLS 1.3 PQC migration measurement lab.** The repository name is retained; this branch adds a Python package and CLI prototype.
+Evidence-first TLS 1.3 post-quantum migration measurement. This repository is now a Python package and CLI, with enterprise-oriented foundations under active development. It is not a certification or production-readiness claim.
 
 > No synthetic metrics. A requested group is not a negotiated group. A null metric is not zero.
 
-## Current capability and honest boundaries
+## What is implemented on this branch
 
-The live adapter invokes local OpenSSL s_client against a real endpoint, preserves its raw transcript, extracts peer certificate DER sizes from emitted PEM certificates, and records local process wall-clock duration. It records a negotiated group only when a recognizable OpenSSL diagnostic line is present.
+- Live OpenSSL capture with preserved diagnostic transcript, peer certificate DER byte count and process wall time.
+- Strict evidence records with provenance, methods, limits and explicit not-measured reasons.
+- Offline PCAP accounting through the installed Wireshark/tshark dissector.
+- Runtime discovery of tshark field availability; unsupported/decryption-dependent fields remain null.
+- Optional TLS key-log input with strict file-permission checks.
+- YAML + environment + CLI configuration precedence.
+- JSON structured logs and a SHA-256 hash-chained local audit log.
+- Optional FastAPI liveness/readiness endpoints.
+- Multi-stage, non-root Docker image and hardened Compose example.
+- CI gates for tests, Ruff, Black, strict mypy, pip-audit and SBOM artifact generation.
 
-The adapter deliberately leaves key-share lengths, CertificateVerify signature length, serialized handshake bytes, TLS record bytes, TCP/IP bytes, and resumption status **not measured**. OpenSSL diagnostic text is not a packet capture, and process duration is not isolated handshake latency. Offline PCAP parsing, TLS key-log decryption, exact wire-byte accounting, and automated resumption are not yet implemented.
+## Important measurement boundaries
+
+PCAP accounting is capture-point dependent. This branch counts IPv4/IPv6 packet lengths per captured packet (retransmissions included, link layer excluded), TLS record payload length plus the 5-byte record header, and decoded handshake body length plus the 4-byte handshake header. Only packets/messages dissected by the installed tshark build are included.
+
+Key-share byte counts are payload bytes only when the installed dissector exposes the corresponding field. CertificateVerify signature length requires successful TLS 1.3 handshake decryption and an available dissector field. Missing values are null with a reason.
+
+PSK selection is not conclusive proof of session resumption because externally provisioned PSKs may also be selected. The offline analyzer reports this observation but does not assert full/resumed session classification. Exact directional accounting, TCP stream reassembly, capture-drop correction and protocol event timing remain production gates.
+
+The live OpenSSL adapter still measures process duration, not isolated handshake latency. Do not compare it as pure network RTT.
 
 ## Install
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[dev,api]"
 pqtls --help
 ```
 
-OpenSSL must be installed separately. Hybrid groups are available only when the local OpenSSL build and remote server support them. Check `openssl version` and `openssl list -tls-groups` where supported.
+OpenSSL is required for live capture. tshark is required for PCAP analysis.
 
-## Capture a real connection
+## Commands
 
-```bash
-pqtls measure --host www.example.com --port 443 --group X25519 --out results/classical.json
-pqtls report results/classical.json --format markdown --out results/classical.md
-pqtls report results/classical.json --format csv --out results/classical.csv
-```
-
-Request a hybrid group only against a known PQC-enabled endpoint:
+Live capture:
 
 ```bash
-pqtls measure --host your-pqc-enabled-server.example --group X25519MLKEM768
+pqtls measure --host www.example.com --group X25519
 ```
 
-The requested group is not proof of negotiation. Inspect `negotiated_group`, `negotiation_verified`, and the preserved transcript. An unrecognized diagnostic format results in an unverified group, not an assumption.
-
-## Evidence model
-
-Every metric includes one of `Measured`, `Specification-derived`, `Calculated`, or `Example`; a named baseline, path, method, limits, and provenance. A missing value is null with `not_measured_reason`.
+Configuration precedence is defaults < YAML < `PQTLS_*` environment < CLI flags:
 
 ```bash
-pqtls compare results/classical.json results/hybrid.json --metric client_process_duration
+pqtls measure --config config.example.yaml --host www.example.com
 ```
 
-Comparison arithmetic is labeled `Calculated`, not a new measurement.
-
-## Architecture
-
-```mermaid
-flowchart LR
-  CLI[Typer CLI] --> Capture[OpenSSL live capture]
-  Capture --> Raw[Raw transcript artifact]
-  Capture --> Schema[Pydantic evidence schema]
-  Schema --> JSON[JSON evidence]
-  JSON --> Report[Markdown / CSV report]
-  JSON --> Dashboard[Optional future dashboard]
-```
-
-## Optional dashboard
-
-Install the optional dependency and run the viewer. It accepts only validated evidence JSON generated by this project; it does not generate demo rows.
+Offline PCAP:
 
 ```bash
-pip install -e ".[dashboard]"
-streamlit run dashboard/app.py
+chmod 600 session.keys
+pqtls pcap capture.pcapng --keylog session.keys --out results/pcap.json
 ```
 
-A starter operator configuration is in `config.example.yaml`; the current CLI uses explicit command-line flags and does not yet load YAML automatically.
-
-## Development
+Audit integrity:
 
 ```bash
-pip install -e ".[dev]"
-pytest
+pqtls audit-verify --path results/audit.jsonl
+```
+
+Reports:
+
+```bash
+pqtls report results/measurement.json --format markdown --out results/report.md
+pqtls report results/measurement.json --format csv --out results/report.csv
+```
+
+Optional API:
+
+```bash
+python -m pip install -e ".[api]"
+uvicorn pqtls.api:app --host 127.0.0.1 --port 8000
+```
+
+- `GET /health/live`: process liveness.
+- `GET /health/ready`: checks required runtime executables.
+- `GET /metrics`: service availability gauge only; no synthetic measurement metrics.
+
+## Docker
+
+```bash
+docker compose build
+docker compose run --rm pqtls --help
+```
+
+The image runs as UID 10001. Compose drops capabilities, enables no-new-privileges and uses a read-only root filesystem.
+
+## Security and operations
+
+- Treat TLS key logs as secrets; they can decrypt captured sessions. Do not commit them.
+- Local audit hash chaining detects tampering but is not immutable/WORM storage or a digital signature. Forward checkpoints to an independently controlled audit system for enterprise deployment.
+- Restrict network egress and access to capture artifacts.
+- Review `docs/enterprise-operations.md` and `docs/measurement-boundaries.md` before operational use.
+
+## Quality checks
+
+```bash
+pytest --cov=pqtls
 ruff check .
 black --check .
 mypy src/pqtls
+pip-audit
+cyclonedx-py environment --output-format JSON --output-file sbom.json
 ```
 
-## Limitations
+A green CI run is required before merging. Coverage is reported but not yet enforced at a project-wide threshold. Dependency ranges are bounded but a fully hash-pinned lockfile and release signing are still required for a production release.
 
-- Certificate DER bytes are the sum of peer certificates printed by OpenSSL. They are not TLS Certificate message bytes; framing, per-certificate extensions, compression, and record framing are excluded.
-- Process duration includes process startup, DNS, TCP/TLS activity, and shutdown. It is not isolated handshake latency or CPU time.
-- TLS 1.3 encrypts most handshake messages after ServerHello. A passive capture needs session secrets to decode Certificate and CertificateVerify.
-- TCP/IP accounting requires packet capture at a documented interface and careful treatment of retransmissions, offload, segmentation, link-layer framing, and capture drops.
-- Resumption must be proven from the handshake, not inferred from a second connection.
+## Production readiness gates still open
 
-## Roadmap (not implemented claims)
+1. Validate tshark fields and decryption behaviour against versioned PCAP fixtures across supported Wireshark versions.
+2. Add client/server direction attribution, TCP stream reassembly, retransmission-aware unique-byte metrics and capture-drop reporting.
+3. Prove full vs resumed TLS 1.3 handshakes using controlled ticket-based fixtures; distinguish external PSKs.
+4. Measure ClientHello-to-ServerHello and Finished/application-ready timing from protocol events, separately from process overhead.
+5. Add authenticated API access, authorization, rate limits, tenant isolation and external immutable audit storage before exposing the service.
+6. Pin every dependency with hashes, scan container images, sign releases and complete independent security review.
 
-1. Add tshark-backed PCAP parsing with optional TLS key-log decryption.
-2. Parse ClientHello/ServerHello key_share vectors from decoded structures and verify selected group.
-3. Extract CertificateVerify signature vector length from decrypted handshake bytes.
-4. Add repeatable full/resumed session harness with ticket reuse and protocol-level verification.
-5. Add a dashboard that filters to measured evidence only.
-
-## References
-
-- [RFC 8446 — TLS 1.3](https://www.rfc-editor.org/rfc/rfc8446.html)
-- [RFC 10024 — PQ/T hybrid TLS 1.3 key agreement](https://www.rfc-editor.org/rfc/rfc10024.html)
-- [NIST FIPS 203 — ML-KEM](https://csrc.nist.gov/pubs/fips/203/final)
-- [NIST FIPS 204 — ML-DSA](https://csrc.nist.gov/pubs/fips/204/final)
-
-See [docs/measurement-boundaries.md](docs/measurement-boundaries.md) for detailed boundaries.
+This branch provides enterprise-oriented foundations and an offline dissector adapter; it is not yet an enterprise-certified or fully production-ready wire-level analyzer.

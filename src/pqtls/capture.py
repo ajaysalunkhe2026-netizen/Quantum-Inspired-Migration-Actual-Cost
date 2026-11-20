@@ -12,15 +12,19 @@ from pathlib import Path
 
 from .schema import EvidenceLabel, HandshakeRecord, Metric
 
-PEM_CERT = re.compile(r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", re.S)
+PEM_CERT = re.compile(r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", re.DOTALL)
 NEGOTIATED = (
-    re.compile(r"Negotiated TLS1?\.3 group:\s*([A-Za-z0-9_-]+)", re.I),
-    re.compile(r"Server Temp Key:\s*([^\r\n]+)", re.I),
+    re.compile(r"Negotiated TLS1?\.3 group:\s*([A-Za-z0-9_-]+)", re.IGNORECASE),
+    re.compile(r"Server Temp Key:\s*([^\r\n]+)", re.IGNORECASE),
 )
 
 
 class CaptureError(RuntimeError):
     """OpenSSL capture failure."""
+
+
+class CaptureTimeoutError(CaptureError):
+    """OpenSSL capture exceeded its configured timeout."""
 
 
 def _cert_der(text: str) -> list[bytes]:
@@ -85,7 +89,7 @@ def measure_live(
             check=False,
         )
     except subprocess.TimeoutExpired as exc:
-        raise CaptureError(f"OpenSSL timed out after {timeout}s") from exc
+        raise CaptureTimeoutError(f"OpenSSL timed out after {timeout}s") from exc
 
     duration_ms = (time.perf_counter() - started) * 1000
     transcript = process.stdout + "\n" + process.stderr
@@ -109,7 +113,7 @@ def measure_live(
             name="certificate_chain_der_bytes",
             value=sum(map(len, certificates)) if certificates else None,
             unit="bytes",
-            label=EvidenceLabel.MEASURED,
+            label=(EvidenceLabel.MEASURED if certificates else EvidenceLabel.NOT_MEASURED),
             path="live TCP/TLS connection",
             method="Sum DER lengths decoded from peer PEM certificates in s_client output",
             limits=[
@@ -126,7 +130,7 @@ def measure_live(
             name="client_key_share_bytes",
             value=None,
             unit="bytes",
-            label=EvidenceLabel.MEASURED,
+            label=EvidenceLabel.NOT_MEASURED,
             path="TLS 1.3 ClientHello",
             method="OpenSSL trace; no stable parser enabled",
             limits=["Requested group is not a measured key-share length."],
@@ -137,7 +141,7 @@ def measure_live(
             name="server_key_share_bytes",
             value=None,
             unit="bytes",
-            label=EvidenceLabel.MEASURED,
+            label=EvidenceLabel.NOT_MEASURED,
             path="TLS 1.3 ServerHello",
             method="OpenSSL trace; no stable parser enabled",
             limits=["Selected group and server key-share length are distinct fields."],
@@ -148,7 +152,7 @@ def measure_live(
             name="certificate_verify_signature_bytes",
             value=None,
             unit="bytes",
-            label=EvidenceLabel.MEASURED,
+            label=EvidenceLabel.NOT_MEASURED,
             path="encrypted TLS 1.3 handshake",
             method="Decrypted handshake parser required",
             limits=["TLS 1.3 CertificateVerify is encrypted after ServerHello."],
@@ -159,7 +163,7 @@ def measure_live(
             name="handshake_message_bytes",
             value=None,
             unit="bytes",
-            label=EvidenceLabel.MEASURED,
+            label=EvidenceLabel.NOT_MEASURED,
             path="TLS handshake messages",
             method="Serialized handshake parser required",
             limits=["Diagnostic text length is not serialized handshake length."],
@@ -170,7 +174,7 @@ def measure_live(
             name="tls_record_bytes",
             value=None,
             unit="bytes",
-            label=EvidenceLabel.MEASURED,
+            label=EvidenceLabel.NOT_MEASURED,
             path="TCP stream",
             method="Packet capture and TLS record accounting required",
             limits=["Requires capture-point and reassembly policy."],
@@ -181,7 +185,7 @@ def measure_live(
             name="tcp_ip_bytes",
             value=None,
             unit="bytes",
-            label=EvidenceLabel.MEASURED,
+            label=EvidenceLabel.NOT_MEASURED,
             path="network interface",
             method="PCAP packet accounting required",
             limits=[
