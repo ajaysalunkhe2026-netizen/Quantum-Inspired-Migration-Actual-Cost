@@ -4,16 +4,17 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-
 
 GENESIS = "0" * 64
 
 
 def _canonical(payload: dict[str, Any]) -> bytes:
-    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+    return json.dumps(
+        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode()
 
 
 def append_audit_event(path: str | Path, event: dict[str, Any]) -> str:
@@ -27,7 +28,7 @@ def append_audit_event(path: str | Path, event: dict[str, Any]) -> str:
             raise ValueError("Audit log integrity check failed; refusing to append")
         previous = str(verified["last_hash"])
     payload = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "previous_hash": previous,
         "event": event,
     }
