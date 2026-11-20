@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
@@ -46,7 +46,7 @@ class HandshakeRecord(BaseModel):
 
     schema_version: str = "1.0"
     id: str
-    captured_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    captured_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     target: str
     port: int
     tls_version: str | None = None
@@ -68,6 +68,6 @@ class EvidenceDocument(BaseModel):
 
     schema_version: str = "1.0"
     project: str = "Quantum-Inspired-Migration-Actual-Cost"
-    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     records: list[HandshakeRecord]
     metadata: dict[str, Any] = Field(default_factory=dict)
