@@ -1,4 +1,5 @@
 """Dependency-free JSON logging for operators and log aggregators."""
+
 from __future__ import annotations
 
 import json
