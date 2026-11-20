@@ -91,7 +91,7 @@ def test_pcap_accounting_uses_dissected_lengths_and_labels_psk(tmp_path, monkeyp
             return SimpleNamespace(returncode=0, stdout="TShark (Wireshark) 4.4.0\n", stderr="")
         return SimpleNamespace(
             returncode=0,
-            stdout="1|1514|1500||120|2|10|32|64|0\n",
+            stdout="1|1514|1500||120|2|10|32||0\n2|100|100|||15|70||64|\n",
             stderr="",
         )
 
@@ -101,11 +101,11 @@ def test_pcap_accounting_uses_dissected_lengths_and_labels_psk(tmp_path, monkeyp
     result = analyze_pcap(source)
     values = {metric["name"]: metric["value"] for metric in result["metrics"]}
 
-    assert result["packet_count"] == 1
-    assert result["frame_bytes"] == 1514
+    assert result["packet_count"] == 2
+    assert result["frame_bytes"] == 1614
     assert result["session_kind_observation"] == "psk_selected_identity_observed"
-    assert values["tcp_ip_bytes"] == 1500
+    assert values["tcp_ip_bytes"] == 1600
     assert values["tls_record_bytes"] == 125
-    assert values["handshake_message_bytes"] == 14
+    assert values["handshake_message_bytes"] is None
     assert values["key_share_payload_bytes"] == 32
     assert values["certificate_verify_signature_bytes"] == 64
