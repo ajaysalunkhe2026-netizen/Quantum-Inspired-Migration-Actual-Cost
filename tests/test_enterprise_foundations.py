@@ -91,7 +91,7 @@ def test_pcap_accounting_uses_dissected_lengths_and_labels_psk(tmp_path, monkeyp
             return SimpleNamespace(returncode=0, stdout="TShark (Wireshark) 4.4.0\n", stderr="")
         return SimpleNamespace(
             returncode=0,
-            stdout="1|1514|1500||120|15|10|32|64|0\n",
+            stdout="1|1514|1500||120|2|10|32|64|0\n",
             stderr="",
         )
 
