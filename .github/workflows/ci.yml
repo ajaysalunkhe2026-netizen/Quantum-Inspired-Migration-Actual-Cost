@@ -17,6 +17,10 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: python -m pip install -e ".[dev,api]"
+      - name: Install tshark for real PCAP integration tests
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y tshark
       - run: pytest --cov=pqtls --cov-report=term-missing
       - run: ruff check .
       - run: black --check .
