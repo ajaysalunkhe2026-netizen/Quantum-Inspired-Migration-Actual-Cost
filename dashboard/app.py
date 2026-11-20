@@ -8,9 +8,7 @@ from pqtls.report import load_document
 
 st.set_page_config(page_title="PQC Migration Evidence", layout="wide")
 st.title("PQC Migration Evidence")
-st.caption(
-    "Only values present in validated evidence files are shown. No demo data is generated."
-)
+st.caption("Only values present in validated evidence files are shown. No demo data is generated.")
 uploaded = st.file_uploader("Upload an evidence JSON file", type=["json"])
 
 if uploaded is None:
