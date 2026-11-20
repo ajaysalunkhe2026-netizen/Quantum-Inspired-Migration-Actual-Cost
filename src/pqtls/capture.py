@@ -14,8 +14,8 @@ from .schema import EvidenceLabel, HandshakeRecord, Metric
 
 PEM_CERT = re.compile(r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", re.S)
 NEGOTIATED = (
-    re.compile(r"Negotiated TLS1?\\.3 group:\\s*([A-Za-z0-9_-]+)", re.I),
-    re.compile(r"Server Temp Key:\\s*([^\\r\\n]+)", re.I),
+    re.compile(r"Negotiated TLS1?\.3 group:\s*([A-Za-z0-9_-]+)", re.I),
+    re.compile(r"Server Temp Key:\s*([^\r\n]+)", re.I),
 )
 
 
@@ -26,7 +26,7 @@ class CaptureError(RuntimeError):
 def _cert_der(text: str) -> list[bytes]:
     certificates: list[bytes] = []
     for block in PEM_CERT.findall(text):
-        body = re.sub(r"-----[^-]+-----|\\s+", "", block)
+        body = re.sub(r"-----[^-]+-----|\s+", "", block)
         certificates.append(base64.b64decode(body, validate=True))
     return certificates
 
@@ -78,7 +78,7 @@ def measure_live(
     try:
         process = subprocess.run(
             command,
-            input="\\n",
+            input="\n",
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -88,7 +88,7 @@ def measure_live(
         raise CaptureError(f"OpenSSL timed out after {timeout}s") from exc
 
     duration_ms = (time.perf_counter() - started) * 1000
-    transcript = process.stdout + "\\n" + process.stderr
+    transcript = process.stdout + "\n" + process.stderr
     directory = Path(output_dir)
     directory.mkdir(parents=True, exist_ok=True)
     artifact = directory / f"{host.replace(':', '_')}-{uuid.uuid4().hex[:8]}.openssl.txt"
