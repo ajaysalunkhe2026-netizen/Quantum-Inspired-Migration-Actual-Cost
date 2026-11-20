@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Generate reproducible, real TLS 1.3 PCAP fixtures with OpenSSL and tcpdump.
 
 All traffic is confined to loopback and contains only a fixture HTTP request.
