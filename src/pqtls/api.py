@@ -1,4 +1,5 @@
 """Optional FastAPI operational endpoints; install the api extra."""
+
 from __future__ import annotations
 
 import shutil
