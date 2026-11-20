@@ -1,4 +1,5 @@
 """Append-only, hash-chained audit events for measurement provenance."""
+
 from __future__ import annotations
 
 import hashlib
@@ -12,9 +13,7 @@ GENESIS = "0" * 64
 
 
 def _canonical(payload: dict[str, Any]) -> bytes:
-    return json.dumps(
-        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-    ).encode()
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
 
 
 def append_audit_event(path: str | Path, event: dict[str, Any]) -> str:
