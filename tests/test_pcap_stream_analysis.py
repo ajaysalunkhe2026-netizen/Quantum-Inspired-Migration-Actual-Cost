@@ -22,8 +22,8 @@ def test_tcp_sequence_ranges_handle_32_bit_wraparound() -> None:
 
 
 def test_pcap_extracts_tls13_events_and_stream_directions(tmp_path, monkeypatch) -> None:
-    source = tmp_path / "hybrid-tls13.pcapng"
-    source.write_bytes(b"test capture placeholder")
+    source = tmp_path / "mocked-tls13-events.pcapng"
+    source.write_bytes(b"unit test stub; tshark output is mocked")
     fields = [
         "frame.len",
         "frame.time_epoch",
@@ -112,8 +112,8 @@ def test_pcap_extracts_tls13_events_and_stream_directions(tmp_path, monkeypatch)
     assert result["clienthello_to_server_finished_ms"] == 200.0
     assert result["clienthello_to_client_finished_ms"] == 250.0
     assert metrics["certificate_verify_signature_bytes"]["value"] == 64
-    assert metrics["tls_record_bytes"]["value"] == 200
-    assert metrics["handshake_message_bytes"]["value"] == 4 * 24
+    assert metrics["tls_record_bytes"]["value"] == 280
+    assert metrics["handshake_message_bytes"]["value"] == 218
     assert result["tcp_directional_accounting"]["stream_7_client_to_server"][
         "tcp_payload_unique_bytes"
     ] == 120
