@@ -83,7 +83,15 @@ def capture_connection(
             stdout=subprocess.DEVNULL,
             stderr=log_handle,
         )
-        time.sleep(0.4)
+        ready_deadline = time.monotonic() + 10
+        while time.monotonic() < ready_deadline:
+            log_handle.flush()
+            if "listening on" in tcpdump_log.read_text(encoding="utf-8", errors="replace"):
+                break
+            time.sleep(0.1)
+        else:
+            stop_process(sniffer)
+            raise RuntimeError("tcpdump did not report a ready capture interface")
         client_command = [
             require_tool("openssl"),
             "s_client",
@@ -111,6 +119,7 @@ def capture_connection(
                 stderr=subprocess.STDOUT,
             )
         finally:
+            time.sleep(1.0)
             stop_process(sniffer)
     output = result.stdout.decode("utf-8", errors="replace")
     endpoint_log.write_text(output, encoding="utf-8")
