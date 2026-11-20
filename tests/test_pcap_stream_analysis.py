@@ -88,7 +88,17 @@ def test_pcap_extracts_tls13_events_and_stream_directions(tmp_path, monkeypatch)
 
     rows = [
         row("100.000", "192.0.2.10", "192.0.2.20", "50000", "443", "1000", "1", "20"),
-        row("100.050", "192.0.2.20", "192.0.2.10", "443", "50000", "2000", "2", "10", "x25519_mlkem768"),
+        row(
+            "100.050",
+            "192.0.2.20",
+            "192.0.2.10",
+            "443",
+            "50000",
+            "2000",
+            "2",
+            "10",
+            "x25519_mlkem768",
+        ),
         row("100.100", "192.0.2.20", "192.0.2.10", "443", "50000", "2040", "11", "50"),
         row("100.150", "192.0.2.20", "192.0.2.10", "443", "50000", "2080", "15", "70", "", "64"),
         row("100.200", "192.0.2.20", "192.0.2.10", "443", "50000", "2120", "20", "10"),
@@ -116,12 +126,18 @@ def test_pcap_extracts_tls13_events_and_stream_directions(tmp_path, monkeypatch)
     assert metrics["certificate_verify_signature_bytes"]["value"] == 64
     assert metrics["tls_record_bytes"]["value"] == 280
     assert metrics["handshake_message_bytes"]["value"] == 218
-    assert result["tcp_directional_accounting"]["stream_7_client_to_server"][
-        "tcp_payload_unique_bytes"
-    ] == 120
-    assert result["tcp_directional_accounting"]["stream_7_server_to_client"][
-        "tcp_payload_unique_bytes"
-    ] == 160
+    assert (
+        result["tcp_directional_accounting"]["stream_7_client_to_server"][
+            "tcp_payload_unique_bytes"
+        ]
+        == 120
+    )
+    assert (
+        result["tcp_directional_accounting"]["stream_7_server_to_client"][
+            "tcp_payload_unique_bytes"
+        ]
+        == 160
+    )
 
 
 def test_psk_selection_is_not_claimed_as_ticket_resumption(tmp_path, monkeypatch) -> None:
