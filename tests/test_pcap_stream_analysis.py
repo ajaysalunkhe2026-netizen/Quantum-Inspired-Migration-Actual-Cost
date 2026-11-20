@@ -161,7 +161,10 @@ def test_psk_selection_is_not_claimed_as_ticket_resumption(tmp_path, monkeypatch
     monkeypatch.setattr("pqtls.pcap.subprocess.run", fake_run)
 
     result = analyze_pcap(source)
+    metrics = {item["name"]: item for item in result["metrics"]}
 
+    assert metrics["tls_record_bytes"]["value"] is None
+    assert metrics["tls_record_bytes"]["label"] == "Not measured"
     assert result["psk_selected_identity_observed"] is True
     assert result["session_kind"] == "unknown"
     assert "externally provisioned PSK" in result["session_kind_reason"]
