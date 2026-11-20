@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from pqtls.pcap import _insert_sequence_range, analyze_pcap
 
 
@@ -109,8 +111,8 @@ def test_pcap_extracts_tls13_events_and_stream_directions(tmp_path, monkeypatch)
 
     assert result["session_kind"] == "full"
     assert result["negotiated_group"] == "x25519_mlkem768"
-    assert result["clienthello_to_server_finished_ms"] == 200.0
-    assert result["clienthello_to_client_finished_ms"] == 250.0
+    assert result["clienthello_to_server_finished_ms"] == pytest.approx(200.0)
+    assert result["clienthello_to_client_finished_ms"] == pytest.approx(250.0)
     assert metrics["certificate_verify_signature_bytes"]["value"] == 64
     assert metrics["tls_record_bytes"]["value"] == 280
     assert metrics["handshake_message_bytes"]["value"] == 218
