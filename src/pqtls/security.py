@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import ipaddress
 import re
-
+import stat
+from pathlib import Path
 
 _HOST_LABEL = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
 
@@ -31,9 +32,6 @@ def normalize_host(value: str) -> str:
 
 def validate_secret_file(path: str) -> None:
     """Require a readable regular file with no group/world permission bits."""
-    from pathlib import Path
-    import stat
-
     target = Path(path)
     info = target.stat()
     if not stat.S_ISREG(info.st_mode):
