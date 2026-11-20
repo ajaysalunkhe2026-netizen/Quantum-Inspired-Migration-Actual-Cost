@@ -281,7 +281,6 @@ def analyze_pcap(
         src_port = _row_text(row, index, "tcp_srcport")
         dst_port = _row_text(row, index, "tcp_dstport")
         stream = int(stream_text) if stream_text and stream_text.isdigit() else None
-        src_endpoint = f"{src or '?'}:{src_port or '?'}"
         dst_endpoint = f"{dst or '?'}:{dst_port or '?'}"
         tcp_len_values = _row_values(row, index, "tcp_len")
         if _row_text(row, index, "tcp_retransmission") or _row_text(
@@ -396,7 +395,6 @@ def analyze_pcap(
     ) -> Metric:
         return _metric(name, value, unit, source, reason, method, limits)
 
-    limits = ["Only packets and protocol messages visible to this capture are counted."]
     metrics = [
         metric(
             "tcp_ip_bytes",
