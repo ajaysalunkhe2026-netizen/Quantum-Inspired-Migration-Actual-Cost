@@ -20,20 +20,26 @@ class DocumentationIntegrityTests(unittest.TestCase):
                 self.assertTrue((ROOT / relative).is_file(), relative)
 
     def test_internal_markdown_links_resolve(self):
-        markdown_files = [ROOT / "README.md", *sorted((ROOT / "docs").glob("*.md")),
-                          *sorted((ROOT / "examples").glob("*.md"))]
+        markdown_files = [
+            ROOT / "README.md",
+            *sorted((ROOT / "docs").glob("*.md")),
+            *sorted((ROOT / "examples").glob("*.md")),
+        ]
         link_pattern = re.compile(r"!?(?:\[[^\]]*\])\(([^)]+)\)")
         for source in markdown_files:
             content = source.read_text(encoding="utf-8")
             for target in link_pattern.findall(content):
                 target = target.strip().split()[0].strip("<>")
-                if not target or re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*:", target) or target.startswith("#"):
+                is_external = re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*:", target)
+                if not target or is_external or target.startswith("#"):
                     continue
                 path = target.split("#", 1)[0].split("?", 1)[0]
                 if path:
                     with self.subTest(source=source.relative_to(ROOT), target=target):
-                        self.assertTrue((source.parent / path).resolve().is_file(),
-                                        f"Broken internal link: {target}")
+                        self.assertTrue(
+                            (source.parent / path).resolve().is_file(),
+                            f"Broken internal link: {target}",
+                        )
 
     def test_documented_key_share_arithmetic(self):
         client_hybrid, server_hybrid = 1216, 1120
@@ -46,9 +52,13 @@ class DocumentationIntegrityTests(unittest.TestCase):
 
     def test_wire_notes_state_measurement_boundary(self):
         text = (ROOT / "docs/wire-size-notes.md").read_text(encoding="utf-8")
-        for phrase in ("Specification-derived", "or a packet-capture result",
-                       "not a like-for-like P-256 hybrid group comparison",
-                       "TLS record bytes", "TCP/IP bytes"):
+        for phrase in (
+            "Specification-derived",
+            "or a packet-capture result",
+            "not a like-for-like P-256 hybrid group comparison",
+            "TLS record bytes",
+            "TCP/IP bytes",
+        ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, text)
 
@@ -57,11 +67,11 @@ class DocumentationIntegrityTests(unittest.TestCase):
         self.assertIn("not an observation", text)
         self.assertIn("Specification-derived arithmetic; not measured", text)
 
-    def test_repository_is_documentation_only(self):
+    def test_repository_is_a_python_package(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8")
-        self.assertIn("documentation only", readme.lower())
-        self.assertIn("No runtime dependencies", requirements)
+        self.assertIn("Python package", readme)
+        self.assertTrue((ROOT / "pyproject.toml").is_file())
+        self.assertTrue((ROOT / "src/pqtls/cli.py").is_file())
 
 
 if __name__ == "__main__":

@@ -1,78 +1,106 @@
-# Measuring Actual Cost of PQC Migration
+# Quantum-Inspired-Migration-Actual-Cost
 
-**Independent lab work by Ajay Salunkhe**
+**Evidence-first TLS 1.3 PQC migration measurement lab.** The repository name is retained; this branch adds a Python package and CLI prototype.
 
-This repository is a documentation-first lab for measuring the engineering and operational cost of migrating deployed cryptographic systems toward post-quantum cryptography (PQC).
+> No synthetic metrics. A requested group is not a negotiated group. A null metric is not zero.
 
-The working rule is simple: measure the change against a named baseline, on a documented path, using a reproducible method. Do not substitute algorithm labels, configuration flags, or dashboard status for evidence.
+## Current capability and honest boundaries
 
-**Lab view. The label is not the measurement.**
+The live adapter invokes local OpenSSL s_client against a real endpoint, preserves its raw transcript, extracts peer certificate DER sizes from emitted PEM certificates, and records local process wall-clock duration. It records a negotiated group only when a recognizable OpenSSL diagnostic line is present.
 
-## What is measured
+The adapter deliberately leaves key-share lengths, CertificateVerify signature length, serialized handshake bytes, TLS record bytes, TCP/IP bytes, and resumption status **not measured**. OpenSSL diagnostic text is not a packet capture, and process duration is not isolated handshake latency. Offline PCAP parsing, TLS key-log decryption, exact wire-byte accounting, and automated resumption are not yet implemented.
 
-The repository defines a method for recording four categories of evidence:
+## Install
 
-1. **Key-exchange wire size**
-   - Client and server key-share lengths.
-   - Classical-to-hybrid byte deltas.
-   - TLS handshake, record, and transport bytes when captured separately.
-2. **Certificate and signature growth**
-   - Individual certificate DER sizes and total transmitted chain size.
-   - Public-key encoding and signature sizes.
-   - TLS Certificate and CertificateVerify message sizes.
-3. **Handshake behaviour**
-   - Full versus resumed TLS sessions.
-   - Offered and selected groups.
-   - Handshake completion, timing, failures, retransmissions, and fragmentation.
-4. **Operational effects**
-   - Client/server CPU time and memory use.
-   - Network bytes and latency distributions.
-   - Session-ticket size and resumption behaviour.
-   - Compatibility observations across clients, proxies, load balancers, and middleboxes.
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
+pqtls --help
+```
 
-A measurement is published only with its baseline, path, method, result, and limits. Specification-derived arithmetic is identified as such; it is not presented as a packet-capture result.
+OpenSSL must be installed separately. Hybrid groups are available only when the local OpenSSL build and remote server support them. Check `openssl version` and `openssl list -tls-groups` where supported.
 
-## What is not measured
+## Capture a real connection
 
-This repository does not currently publish implementation benchmarks or operational measurements. It does not estimate quantum attack cost, cryptographic security strength, organisation-wide migration budgets, or the probability of compromise.
+```bash
+pqtls measure --host www.example.com --port 443 --group X25519 --out results/classical.json
+pqtls report results/classical.json --format markdown --out results/classical.md
+pqtls report results/classical.json --format csv --out results/classical.csv
+```
 
-It does not claim complete cryptographic discovery, complete CBOM coverage, compliance, certification, or migration readiness.
+Request a hybrid group only against a known PQC-enabled endpoint:
 
-## What this is not
+```bash
+pqtls measure --host your-pqc-enabled-server.example --group X25519MLKEM768
+```
 
-- A quantum-computer simulator.
-- A quantum-inspired optimiser.
-- A migration automation engine.
-- A vulnerability scanner.
-- A production monitoring service or dashboard.
-- A source of synthetic benchmark results or assumed cost savings.
-- A certification or proof that a system is quantum-safe.
+The requested group is not proof of negotiation. Inspect `negotiated_group`, `negotiation_verified`, and the preserved transcript. An unrecognized diagnostic format results in an unverified group, not an assumption.
 
-No random data, dummy migrations, or fabricated measurements are used.
+## Evidence model
 
-## How to use
+Every metric includes one of `Measured`, `Specification-derived`, `Calculated`, or `Example`; a named baseline, path, method, limits, and provenance. A missing value is null with `not_measured_reason`.
 
-1. Read [Scope and limits](docs/scope-and-limits.md) before interpreting a number.
-2. Review [Wire-size notes](docs/wire-size-notes.md) for specification-derived share sizes and comparison boundaries.
-3. Use [Handshake and operational notes](docs/handshake-and-operational-notes.md) to define the test path and logging.
-4. Record observations using [the sample cost row](examples/sample-cost-row.md).
-5. Replace illustrative fields with evidence from a real, reproducible test environment before publishing a measured result.
+```bash
+pqtls compare results/classical.json results/hybrid.json --metric client_process_duration
+```
 
-No runtime installation is required. This repository currently contains documentation only.\n\n## Validation\n\nRun the documentation integrity checks locally with:\n\n\`\`\`bash\npython -m unittest discover -s tests -v\n\`\`\`\n\nGitHub Actions runs the same checks on pushes and pull requests to `main`. These checks validate required files, internal Markdown links, documented share-size arithmetic, and evidence labels. They do not benchmark a TLS implementation or validate live network behaviour.
+Comparison arithmetic is labeled `Calculated`, not a new measurement.
 
-## Evidence status
+## Architecture
 
-The wire-size arithmetic in this repository is derived from published protocol specifications and explicitly stated baselines. No TLS implementation benchmark, packet capture, latency result, CPU result, or operational compatibility result is claimed here.
+```mermaid
+flowchart LR
+  CLI[Typer CLI] --> Capture[OpenSSL live capture]
+  Capture --> Raw[Raw transcript artifact]
+  Capture --> Schema[Pydantic evidence schema]
+  Schema --> JSON[JSON evidence]
+  JSON --> Report[Markdown / CSV report]
+  JSON --> Dashboard[Optional future dashboard]
+```
+
+## Optional dashboard
+
+Install the optional dependency and run the viewer. It accepts only validated evidence JSON generated by this project; it does not generate demo rows.
+
+```bash
+pip install -e ".[dashboard]"
+streamlit run dashboard/app.py
+```
+
+A starter operator configuration is in `config.example.yaml`; the current CLI uses explicit command-line flags and does not yet load YAML automatically.
+
+## Development
+
+```bash
+pip install -e ".[dev]"
+pytest
+ruff check .
+black --check .
+mypy src/pqtls
+```
+
+## Limitations
+
+- Certificate DER bytes are the sum of peer certificates printed by OpenSSL. They are not TLS Certificate message bytes; framing, per-certificate extensions, compression, and record framing are excluded.
+- Process duration includes process startup, DNS, TCP/TLS activity, and shutdown. It is not isolated handshake latency or CPU time.
+- TLS 1.3 encrypts most handshake messages after ServerHello. A passive capture needs session secrets to decode Certificate and CertificateVerify.
+- TCP/IP accounting requires packet capture at a documented interface and careful treatment of retransmissions, offload, segmentation, link-layer framing, and capture drops.
+- Resumption must be proven from the handshake, not inferred from a second connection.
+
+## Roadmap (not implemented claims)
+
+1. Add tshark-backed PCAP parsing with optional TLS key-log decryption.
+2. Parse ClientHello/ServerHello key_share vectors from decoded structures and verify selected group.
+3. Extract CertificateVerify signature vector length from decrypted handshake bytes.
+4. Add repeatable full/resumed session harness with ticket reuse and protocol-level verification.
+5. Add a dashboard that filters to measured evidence only.
 
 ## References
 
-- [RFC 10024 — Post-Quantum Traditional (PQ/T) Hybrid Key Agreement Mechanisms for TLS 1.3](https://www.rfc-editor.org/rfc/rfc10024.html)
-- [RFC 8446 — The Transport Layer Security (TLS) Protocol Version 1.3](https://www.rfc-editor.org/rfc/rfc8446.html)
-- [FIPS 203 — Module-Lattice-Based Key-Encapsulation Mechanism Standard](https://csrc.nist.gov/pubs/fips/203/final)
-- [FIPS 204 — Module-Lattice-Based Digital Signature Standard](https://csrc.nist.gov/pubs/fips/204/final)
+- [RFC 8446 — TLS 1.3](https://www.rfc-editor.org/rfc/rfc8446.html)
+- [RFC 10024 — PQ/T hybrid TLS 1.3 key agreement](https://www.rfc-editor.org/rfc/rfc10024.html)
+- [NIST FIPS 203 — ML-KEM](https://csrc.nist.gov/pubs/fips/203/final)
+- [NIST FIPS 204 — ML-DSA](https://csrc.nist.gov/pubs/fips/204/final)
 
----
-
-**Author:** Ajay Salunkhe  
-**Purpose:** Independent PQC migration-cost measurement  
-**Evidence policy:** Measurement over labels.
+See [docs/measurement-boundaries.md](docs/measurement-boundaries.md) for detailed boundaries.
