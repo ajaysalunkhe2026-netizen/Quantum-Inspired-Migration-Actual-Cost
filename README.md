@@ -58,7 +58,7 @@ No random data, dummy migrations, or fabricated measurements are used.
 4. Record observations using [the sample cost row](examples/sample-cost-row.md).
 5. Replace illustrative fields with evidence from a real, reproducible test environment before publishing a measured result.
 
-No runtime installation is required. This repository currently contains documentation only.
+No runtime installation is required. This repository currently contains documentation only.\n\n## Validation\n\nRun the documentation integrity checks locally with:\n\n\`\`\`bash\npython -m unittest discover -s tests -v\n\`\`\`\n\nGitHub Actions runs the same checks on pushes and pull requests to `main`. These checks validate required files, internal Markdown links, documented share-size arithmetic, and evidence labels. They do not benchmark a TLS implementation or validate live network behaviour.
 
 ## Evidence status
 
