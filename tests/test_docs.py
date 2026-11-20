@@ -20,8 +20,11 @@ class DocumentationIntegrityTests(unittest.TestCase):
                 self.assertTrue((ROOT / relative).is_file(), relative)
 
     def test_internal_markdown_links_resolve(self):
-        markdown_files = [ROOT / "README.md", *sorted((ROOT / "docs").glob("*.md")),
-                          *sorted((ROOT / "examples").glob("*.md"))]
+        markdown_files = [
+            ROOT / "README.md",
+            *sorted((ROOT / "docs").glob("*.md")),
+            *sorted((ROOT / "examples").glob("*.md")),
+        ]
         link_pattern = re.compile(r"!?(?:\[[^\]]*\])\(([^)]+)\)")
         for source in markdown_files:
             content = source.read_text(encoding="utf-8")
@@ -33,8 +36,10 @@ class DocumentationIntegrityTests(unittest.TestCase):
                 path = target.split("#", 1)[0].split("?", 1)[0]
                 if path:
                     with self.subTest(source=source.relative_to(ROOT), target=target):
-                        self.assertTrue((source.parent / path).resolve().is_file(),
-                                        f"Broken internal link: {target}")
+                        self.assertTrue(
+                            (source.parent / path).resolve().is_file(),
+                            f"Broken internal link: {target}",
+                        )
 
     def test_documented_key_share_arithmetic(self):
         client_hybrid, server_hybrid = 1216, 1120
@@ -47,9 +52,13 @@ class DocumentationIntegrityTests(unittest.TestCase):
 
     def test_wire_notes_state_measurement_boundary(self):
         text = (ROOT / "docs/wire-size-notes.md").read_text(encoding="utf-8")
-        for phrase in ("Specification-derived", "or a packet-capture result",
-                       "not a like-for-like P-256 hybrid group comparison",
-                       "TLS record bytes", "TCP/IP bytes"):
+        for phrase in (
+            "Specification-derived",
+            "or a packet-capture result",
+            "not a like-for-like P-256 hybrid group comparison",
+            "TLS record bytes",
+            "TCP/IP bytes",
+        ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, text)
 
