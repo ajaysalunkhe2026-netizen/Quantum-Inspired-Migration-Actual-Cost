@@ -24,13 +24,17 @@ jobs:
       - name: Strict mypy
         if: always()
         run: mypy src/pqtls
+      - name: Upgrade build tooling for security fixes
+        if: always()
+        run: python -m pip install --upgrade 'setuptools>=84.1.0'
       - name: Dependency audit
         if: always()
-        run: pip-audit
+        run: pip-audit --skip-editable
       - name: Generate SBOM
         if: always()
         run: cyclonedx-py environment --output-format JSON --output-file sbom.json
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: python-sbom
           path: sbom.json
