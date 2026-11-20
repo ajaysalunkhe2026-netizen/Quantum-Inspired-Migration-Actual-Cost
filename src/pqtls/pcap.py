@@ -274,8 +274,11 @@ def analyze_pcap(
         ipv4 = _row_values(row, index, "ipv4_length")
         ipv6 = _row_values(row, index, "ipv6_payload_length")
         totals["frame_bytes"] += sum(frame)
+        totals["ip_bytes"] += sum(ipv4) + sum(length + 40 for length in ipv6)
         if frame:
             observed.add("frame_bytes")
+        if ipv4 or ipv6:
+            observed.add("ip_bytes")
 
         stream_text = _row_text(row, index, "tcp_stream")
         src = _row_text(row, index, "ip_src") or _row_text(row, index, "ipv6_src")
@@ -285,10 +288,6 @@ def analyze_pcap(
         stream = int(stream_text) if stream_text and stream_text.isdigit() else None
         dst_endpoint = f"{dst or '?'}:{dst_port or '?'}"
         packet_ip_bytes = sum(ipv4) + sum(length + 40 for length in ipv6)
-        if stream is not None:
-            totals["ip_bytes"] += packet_ip_bytes
-            if ipv4 or ipv6:
-                observed.add("ip_bytes")
         tcp_len_values = _row_values(row, index, "tcp_len")
         if _row_text(row, index, "tcp_retransmission") or _row_text(
             row, index, "tcp_fast_retransmission"
