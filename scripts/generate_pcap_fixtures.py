@@ -69,7 +69,7 @@ def capture_connection(
     capture_command = [
         require_tool("tcpdump"),
         "-i",
-        "lo",
+        "any",
         "-nn",
         "-s",
         "0",
@@ -219,6 +219,7 @@ def fixture_entry(
     openssl_version: str,
     tcpdump_version: str,
     tshark_version: str,
+    port: int,
 ) -> dict[str, Any]:
     return {
         "name": name,
@@ -234,8 +235,8 @@ def fixture_entry(
         "openssl_version": openssl_version,
         "tcpdump_version": tcpdump_version,
         "tshark_version": tshark_version,
-        "capture_interface": "lo",
-        "capture_filter": f"tcp port fixture-specific-loopback-port",
+        "capture_interface": "any",
+        "capture_filter": f"tcp port {port}",
         "capture_time_utc": datetime.now(UTC).isoformat(),
     }
 
@@ -304,6 +305,7 @@ def main() -> None:
                     openssl_version=openssl_version,
                     tcpdump_version=tcpdump_version,
                     tshark_version=tshark_version,
+                    port=18443,
                 )
             )
 
@@ -334,6 +336,7 @@ def main() -> None:
                     openssl_version=openssl_version,
                     tcpdump_version=tcpdump_version,
                     tshark_version=tshark_version,
+                    port=18444,
                 )
             )
         finally:
