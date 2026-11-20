@@ -242,6 +242,12 @@ def analyze_pcap(
 
     rows = list(csv.reader(io.StringIO(result.stdout), delimiter="|"))
     index = {key: field_names.index(field) for key, field in selected.items() if field is not None}
+    ip_accounting_complete = (
+        selected["ipv4_length"] is not None and selected["ipv6_payload_length"] is not None
+    )
+    tcp_payload_accounting_complete = all(
+        selected[key] is not None for key in ("tcp_stream", "tcp_seq", "tcp_len")
+    )
     totals = {
         "packets": 0,
         "frame_bytes": 0,
@@ -295,6 +301,8 @@ def analyze_pcap(
             totals["tcp_retransmission_packets"] += 1
         seq_values = _row_values(row, index, "tcp_seq")
         if stream is not None and src and dst and src_port and dst_port:
+            if not ipv4 and not ipv6:
+                ip_accounting_complete = False
             key = (stream, src, src_port, dst, dst_port)
             direction = direction_totals.setdefault(
                 key, {"ip_bytes": 0, "captured_payload_bytes": 0, "unique_payload_bytes": 0}
@@ -310,6 +318,8 @@ def analyze_pcap(
                     direction["unique_payload_bytes"] += unique
                     totals["tcp_payload_unique_bytes"] += unique
                     totals["tcp_payload_retransmitted_bytes"] += payload_len - unique
+                else:
+                    tcp_payload_accounting_complete = False
             syn = _row_values(row, index, "tcp_syn")
             ack = _row_values(row, index, "tcp_ack")
             if client_endpoint is None and syn and syn[0] == 1 and (not ack or ack[0] == 0):
@@ -441,6 +451,7 @@ def analyze_pcap(
         if session_kind == "resumed"
         else "insufficient"
     )
+    handshake_capture_complete = session_kind in {"full", "resumed"}
 
     def metric(
         name: str,
@@ -455,17 +466,21 @@ def analyze_pcap(
     metrics = [
         metric(
             "tcp_ip_bytes",
-            totals["ip_bytes"] or None,
+            totals["ip_bytes"] if ip_accounting_complete and totals["ip_bytes"] else None,
             "bytes",
-            "No IPv4 or IPv6 packet lengths were dissected.",
+            "IPv4 and IPv6 packet-length fields were not both available or no IP lengths were dissected.",
             "Sum captured IPv4 total lengths and IPv6 payload lengths plus 40-byte base headers.",
             ["Includes retransmissions; excludes link-layer headers and capture-drop correction."],
         ),
         metric(
             "tcp_payload_unique_bytes",
-            totals["tcp_payload_unique_bytes"] or None,
+            (
+                totals["tcp_payload_unique_bytes"]
+                if tcp_payload_accounting_complete and totals["tcp_payload_captured_bytes"]
+                else None
+            ),
             "bytes",
-            "TCP stream IDs, sequence numbers or payload lengths were unavailable.",
+            "TCP stream, sequence and payload fields were unavailable or at least one captured payload segment lacked sequence metadata.",
             "Deduplicate TCP sequence ranges independently for each stream and direction.",
             ["Sequence coverage, not a byte-for-byte exported reassembled stream."],
         ),
@@ -473,7 +488,7 @@ def analyze_pcap(
             "tcp_payload_retransmitted_bytes",
             (
                 totals["tcp_payload_retransmitted_bytes"]
-                if totals["tcp_payload_captured_bytes"]
+                if tcp_payload_accounting_complete and totals["tcp_payload_captured_bytes"]
                 else None
             ),
             "bytes",
@@ -491,9 +506,13 @@ def analyze_pcap(
         ),
         metric(
             "handshake_message_bytes",
-            totals["handshake_message_bytes"] if "handshake_message_bytes" in observed else None,
+            (
+                totals["handshake_message_bytes"]
+                if handshake_capture_complete and "handshake_message_bytes" in observed
+                else None
+            ),
             "bytes",
-            "No TLS handshake message lengths were dissected; encrypted messages may need a key log.",
+            "A complete full or corroborated resumed TLS 1.3 handshake was not decoded; encrypted messages may need a valid key log.",
             "Sum dissected handshake message lengths plus 4-byte handshake headers.",
             ["TLS record bytes and handshake message bytes are separate, non-additive layers."],
         ),
@@ -579,6 +598,8 @@ def analyze_pcap(
         current["ip_bytes_including_retransmissions"] += values["ip_bytes"]
         current["tcp_payload_captured_bytes"] += values["captured_payload_bytes"]
         current["tcp_payload_unique_bytes"] += values["unique_payload_bytes"]
+        if not tcp_payload_accounting_complete:
+            current["tcp_payload_unique_bytes"] = None
 
     version_result = subprocess.run(
         [binary, "--version"], capture_output=True, text=True, timeout=10, check=False
@@ -591,6 +612,8 @@ def analyze_pcap(
         "tcp_retransmission_packet_count": totals["tcp_retransmission_packets"],
         "frame_bytes": totals["frame_bytes"],
         "tcp_directional_accounting": directional,
+        "tcp_payload_accounting_complete": tcp_payload_accounting_complete,
+        "ip_accounting_complete": ip_accounting_complete,
         "session_kind": session_kind,
         "session_kind_reason": session_kind_reason,
         "session_kind_evidence": session_kind_evidence,
