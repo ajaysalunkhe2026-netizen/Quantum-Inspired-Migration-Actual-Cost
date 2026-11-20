@@ -113,9 +113,7 @@ def measure_live(
             name="certificate_chain_der_bytes",
             value=sum(map(len, certificates)) if certificates else None,
             unit="bytes",
-            label=(
-                EvidenceLabel.MEASURED if certificates else EvidenceLabel.NOT_MEASURED
-            ),
+            label=(EvidenceLabel.MEASURED if certificates else EvidenceLabel.NOT_MEASURED),
             path="live TCP/TLS connection",
             method="Sum DER lengths decoded from peer PEM certificates in s_client output",
             limits=[
