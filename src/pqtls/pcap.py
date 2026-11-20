@@ -4,6 +4,7 @@ TCP payload accounting deduplicates sequence ranges per stream and direction. TL
 record and handshake fields are emitted only when tshark actually dissects them.
 A PSK selection is never treated as proof of ticket-based resumption.
 """
+
 from __future__ import annotations
 
 import csv
@@ -37,17 +38,13 @@ FIELD_CANDIDATES = {
     "tls_record_length": ("tls.record.length",),
     "handshake_type": ("tls.handshake.type",),
     "handshake_length": ("tls.handshake.length",),
-    "key_share_length": (
-        "tls.handshake.extensions_key_share_key_exchange_length",
-    ),
+    "key_share_length": ("tls.handshake.extensions_key_share_key_exchange_length",),
     "key_share_group": (
         "tls.handshake.extensions_key_share_group",
         "tls.handshake.extensions_key_share_selected_group",
     ),
     "signature_length": ("tls.handshake.sig_len",),
-    "psk_selected_identity": (
-        "tls.handshake.extensions_psk_selected_identity",
-    ),
+    "psk_selected_identity": ("tls.handshake.extensions_psk_selected_identity",),
 }
 
 HANDSHAKE_TYPES = {
@@ -105,9 +102,7 @@ def _row_text(row: list[str], index: dict[str, int], key: str) -> str | None:
     return row[position].split(",", maxsplit=1)[0]
 
 
-def _insert_sequence_range(
-    intervals: list[tuple[int, int]], sequence: int, length: int
-) -> int:
+def _insert_sequence_range(intervals: list[tuple[int, int]], sequence: int, length: int) -> int:
     """Add a TCP sequence range and return newly covered bytes.
 
     Sequence numbers are unwrapped relative to the highest previously observed
@@ -225,20 +220,14 @@ def analyze_pcap(
     if keylog_path is not None:
         command.extend(["-o", f"tls.keylog_file:{Path(keylog_path)}"])
     try:
-        result = subprocess.run(
-            command, capture_output=True, text=True, timeout=300, check=False
-        )
+        result = subprocess.run(command, capture_output=True, text=True, timeout=300, check=False)
     except subprocess.TimeoutExpired as exc:
         raise PcapError("tshark analysis timed out after 300 seconds") from exc
     if result.returncode:
         raise PcapError(result.stderr.strip() or "tshark PCAP analysis failed")
 
     rows = list(csv.reader(io.StringIO(result.stdout), delimiter="|"))
-    index = {
-        key: field_names.index(field)
-        for key, field in selected.items()
-        if field is not None
-    }
+    index = {key: field_names.index(field) for key, field in selected.items() if field is not None}
     totals = {
         "packets": 0,
         "frame_bytes": 0,
@@ -331,9 +320,7 @@ def analyze_pcap(
         timestamp = _seconds(_row_text(row, index, "frame_time"))
         if timestamp is not None and types:
             for handshake_type in types:
-                handshake_events.append(
-                    (handshake_type, timestamp, src, src_port, dst_endpoint)
-                )
+                handshake_events.append((handshake_type, timestamp, src, src_port, dst_endpoint))
         if 2 in types:
             negotiated_group = _row_text(row, index, "key_share_group") or negotiated_group
         if _row_text(row, index, "psk_selected_identity") is not None:
@@ -414,7 +401,11 @@ def analyze_pcap(
         ),
         metric(
             "tcp_payload_retransmitted_bytes",
-            totals["tcp_payload_retransmitted_bytes"] if totals["tcp_payload_captured_bytes"] else None,
+            (
+                totals["tcp_payload_retransmitted_bytes"]
+                if totals["tcp_payload_captured_bytes"]
+                else None
+            ),
             "bytes",
             "No TCP payload segments with sequence metadata were dissected.",
             "Captured TCP payload bytes minus newly covered sequence-range bytes.",
@@ -446,9 +437,11 @@ def analyze_pcap(
         ),
         metric(
             "certificate_verify_signature_bytes",
-            totals["certificate_verify_signature_bytes"]
-            if "certificate_verify_signature_bytes" in observed
-            else None,
+            (
+                totals["certificate_verify_signature_bytes"]
+                if "certificate_verify_signature_bytes" in observed
+                else None
+            ),
             "bytes",
             "CertificateVerify signature length was not decoded; TLS 1.3 decryption may be required.",
             "Sum signature-length fields on decoded CertificateVerify messages.",
@@ -478,15 +471,16 @@ def analyze_pcap(
         direction_name = (
             "client_to_server"
             if client_endpoint == (src, src_port)
-            else "server_to_client"
-            if client_endpoint == (dst, dst_port)
-            else "endpoint_a_to_b"
+            else "server_to_client" if client_endpoint == (dst, dst_port) else "endpoint_a_to_b"
         )
         label = f"stream_{stream_id}_{direction_name}"
         current = directional.setdefault(
             label,
-            {"ip_bytes_including_retransmissions": 0, "tcp_payload_captured_bytes": 0,
-             "tcp_payload_unique_bytes": 0},
+            {
+                "ip_bytes_including_retransmissions": 0,
+                "tcp_payload_captured_bytes": 0,
+                "tcp_payload_unique_bytes": 0,
+            },
         )
         current["ip_bytes_including_retransmissions"] += values["ip_bytes"]
         current["tcp_payload_captured_bytes"] += values["captured_payload_bytes"]
@@ -519,9 +513,7 @@ def analyze_pcap(
         "clienthello_to_client_finished_ms": client_latency,
         "negotiated_group": negotiated_group,
         "metrics": [item.model_dump(mode="json") for item in metrics],
-        "field_availability": {
-            key: field is not None for key, field in selected.items()
-        },
+        "field_availability": {key: field is not None for key, field in selected.items()},
         "capture_policy": {
             "tcp_ip": "Captured IP packet bytes; retransmissions included",
             "tcp_payload_unique": "TCP sequence-range coverage per stream and direction",
