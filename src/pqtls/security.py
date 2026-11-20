@@ -1,4 +1,5 @@
 """Input validation and safe handling helpers."""
+
 from __future__ import annotations
 
 import ipaddress
