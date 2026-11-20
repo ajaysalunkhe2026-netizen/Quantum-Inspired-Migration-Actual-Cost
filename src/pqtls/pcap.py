@@ -21,7 +21,9 @@ FIELD_CANDIDATES = {
     "ipv4_length": ("ip.len",),
     "ipv6_payload_length": ("ipv6.plen",),
     "ip_src": ("ip.src", "ipv6.src"),
-    "ip_dst": ("ip.dst", "ipv6.dst"),
+    "ip_dst": ("ip.dst",),
+    "ipv6_src": ("ipv6.src",),
+    "ipv6_dst": ("ipv6.dst",),
     "tcp_srcport": ("tcp.srcport",),
     "tcp_dstport": ("tcp.dstport",),
     "tcp_stream": ("tcp.stream",),
@@ -29,6 +31,8 @@ FIELD_CANDIDATES = {
     "tcp_len": ("tcp.len",),
     "tcp_syn": ("tcp.flags.syn",),
     "tcp_ack": ("tcp.flags.ack",),
+    "tcp_retransmission": ("tcp.analysis.retransmission",),
+    "tcp_fast_retransmission": ("tcp.analysis.fast_retransmission",),
     "tls_record_length": ("tls.record.length",),
     "handshake_type": ("tls.handshake.type",),
     "handshake_length": ("tls.handshake.length",),
@@ -210,6 +214,10 @@ def analyze_pcap(
         "occurrence=a",
         "-E",
         "aggregator=,",
+        "-o",
+        "tcp.desegment_tcp_streams:TRUE",
+        "-o",
+        "tls.desegment_ssl_records:TRUE",
     ]
     for field in field_names:
         command.extend(["-e", field])
@@ -241,6 +249,7 @@ def analyze_pcap(
         "tcp_payload_captured_bytes": 0,
         "tcp_payload_unique_bytes": 0,
         "tcp_payload_retransmitted_bytes": 0,
+        "tcp_retransmission_packets": 0,
     }
     direction_totals: dict[tuple[int, str, str, str, str], dict[str, int]] = {}
     sequence_ranges: dict[tuple[int, str, str, str, str], list[tuple[int, int]]] = {}
@@ -266,14 +275,18 @@ def analyze_pcap(
             observed.add("ip_bytes")
 
         stream_text = _row_text(row, index, "tcp_stream")
-        src = _row_text(row, index, "ip_src")
-        dst = _row_text(row, index, "ip_dst")
+        src = _row_text(row, index, "ip_src") or _row_text(row, index, "ipv6_src")
+        dst = _row_text(row, index, "ip_dst") or _row_text(row, index, "ipv6_dst")
         src_port = _row_text(row, index, "tcp_srcport")
         dst_port = _row_text(row, index, "tcp_dstport")
         stream = int(stream_text) if stream_text and stream_text.isdigit() else None
         src_endpoint = f"{src or '?'}:{src_port or '?'}"
         dst_endpoint = f"{dst or '?'}:{dst_port or '?'}"
         tcp_len_values = _row_values(row, index, "tcp_len")
+        if _row_text(row, index, "tcp_retransmission") or _row_text(
+            row, index, "tcp_fast_retransmission"
+        ):
+            totals["tcp_retransmission_packets"] += 1
         seq_values = _row_values(row, index, "tcp_seq")
         if stream is not None and src and dst and src_port and dst_port and tcp_len_values:
             key = (stream, src, src_port, dst, dst_port)
@@ -488,6 +501,7 @@ def analyze_pcap(
         "source": str(source),
         "tshark_version": version_lines[0] if version_lines else "unknown",
         "packet_count": totals["packets"],
+        "tcp_retransmission_packet_count": totals["tcp_retransmission_packets"],
         "frame_bytes": totals["frame_bytes"],
         "tcp_directional_accounting": directional,
         "session_kind": session_kind,
