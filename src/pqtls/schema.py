@@ -1,9 +1,13 @@
 """Strict evidence schema; unavailable measurements are explicit nulls."""
+
 from __future__ import annotations
+
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
 
 class EvidenceLabel(str, Enum):
     MEASURED = "Measured"
@@ -11,8 +15,10 @@ class EvidenceLabel(str, Enum):
     CALCULATED = "Calculated"
     EXAMPLE = "Example"
 
+
 class Metric(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
     name: str
     value: float | int | None = None
     unit: str
@@ -25,7 +31,7 @@ class Metric(BaseModel):
     not_measured_reason: str | None = None
 
     @model_validator(mode="after")
-    def validate_evidence(self) -> "Metric":
+    def validate_evidence(self) -> Metric:
         if self.value is None and not self.not_measured_reason:
             raise ValueError("null metrics require not_measured_reason")
         if self.value is not None and self.not_measured_reason:
@@ -34,8 +40,10 @@ class Metric(BaseModel):
             raise ValueError("Measured metrics require a source artifact")
         return self
 
+
 class HandshakeRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
     schema_version: str = "1.0"
     id: str
     captured_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -54,8 +62,10 @@ class HandshakeRecord(BaseModel):
     raw_log_path: str | None = None
     notes: list[str] = Field(default_factory=list)
 
+
 class EvidenceDocument(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
     schema_version: str = "1.0"
     project: str = "Quantum-Inspired-Migration-Actual-Cost"
     generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
