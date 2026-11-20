@@ -154,7 +154,7 @@ def _metric(
         name=name,
         value=value,
         unit=unit,
-        label=EvidenceLabel.MEASURED,
+        label=EvidenceLabel.MEASURED if value is not None else EvidenceLabel.NOT_MEASURED,
         baseline=f"PCAP:{source.name}",
         path="offline packet capture",
         method=method,
