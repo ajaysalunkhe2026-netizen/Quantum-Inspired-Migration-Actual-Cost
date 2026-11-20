@@ -148,7 +148,7 @@ def _seconds(value: str | None) -> float | None:
 
 def _metric(
     name: str,
-    value: int | float | None,
+    value: float | None,
     unit: str,
     source: Path,
     reason: str,
@@ -388,7 +388,7 @@ def analyze_pcap(
 
     def metric(
         name: str,
-        value: int | float | None,
+        value: float | None,
         unit: str,
         reason: str,
         method: str,
