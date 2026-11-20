@@ -27,7 +27,8 @@ class DocumentationIntegrityTests(unittest.TestCase):
             content = source.read_text(encoding="utf-8")
             for target in link_pattern.findall(content):
                 target = target.strip().split()[0].strip("<>")
-                if not target or re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*:", target) or target.startswith("#"):
+                is_external = re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*:", target)
+                if not target or is_external or target.startswith("#"):
                     continue
                 path = target.split("#", 1)[0].split("?", 1)[0]
                 if path:
