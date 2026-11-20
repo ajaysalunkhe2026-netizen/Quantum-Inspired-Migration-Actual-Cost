@@ -595,10 +595,17 @@ def analyze_pcap(
                 "tcp_payload_unique_bytes": 0,
             },
         )
-        current["ip_bytes_including_retransmissions"] += values["ip_bytes"]
-        current["tcp_payload_captured_bytes"] += values["captured_payload_bytes"]
-        current["tcp_payload_unique_bytes"] += values["unique_payload_bytes"]
-        if not tcp_payload_accounting_complete:
+        current["ip_bytes_including_retransmissions"] = (
+            int(current["ip_bytes_including_retransmissions"] or 0) + values["ip_bytes"]
+        )
+        current["tcp_payload_captured_bytes"] = (
+            int(current["tcp_payload_captured_bytes"] or 0) + values["captured_payload_bytes"]
+        )
+        if tcp_payload_accounting_complete:
+            current["tcp_payload_unique_bytes"] = (
+                int(current["tcp_payload_unique_bytes"] or 0) + values["unique_payload_bytes"]
+            )
+        else:
             current["tcp_payload_unique_bytes"] = None
 
     version_result = subprocess.run(
