@@ -578,7 +578,7 @@ def analyze_pcap(
         ),
     ]
 
-    directional: dict[str, dict[str, int]] = {}
+    directional: dict[str, dict[str, int | None]] = {}
     for key, values in direction_totals.items():
         stream_id, src, src_port, dst, dst_port = key
         direction_name = (
