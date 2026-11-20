@@ -1,4 +1,5 @@
 """Typer command-line interface for evidence-first TLS measurements."""
+
 from __future__ import annotations
 
 import json
@@ -179,7 +180,11 @@ def compare(
     def find_measured_value(document: EvidenceDocument) -> float:
         for record in document.records:
             for item in record.metrics:
-                if item.name == metric and item.value is not None and item.label.value == "Measured":
+                if (
+                    item.name == metric
+                    and item.value is not None
+                    and item.label.value == "Measured"
+                ):
                     return float(item.value)
         raise typer.BadParameter(f"No measured value for {metric!r}")
 
