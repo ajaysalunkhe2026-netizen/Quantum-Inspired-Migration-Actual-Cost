@@ -493,6 +493,12 @@ def analyze_pcap(
         "session_kind": session_kind,
         "session_kind_reason": session_kind_reason,
         "psk_selected_identity_observed": psk_selected,
+        "session_kind_observation": (
+            "psk_selected_identity_observed" if psk_selected else "no_psk_selection_observed"
+        ),
+        "session_kind_limit": (
+            "PSK selection is not proof of ticket-based resumption; external PSKs are also possible."
+        ),
         "handshake_events_observed": sorted(
             {HANDSHAKE_TYPES.get(kind, f"unknown_{kind}") for kind in handshake_types}
         ),
