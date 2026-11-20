@@ -235,6 +235,8 @@ def analyze_pcap(
         "tls_record_bytes": 0,
         "handshake_message_bytes": 0,
         "key_share_payload_bytes": 0,
+        "client_key_share_payload_bytes": 0,
+        "server_key_share_payload_bytes": 0,
         "certificate_verify_signature_bytes": 0,
         "tcp_payload_captured_bytes": 0,
         "tcp_payload_unique_bytes": 0,
@@ -313,6 +315,12 @@ def analyze_pcap(
             observed.add("handshake_message_bytes")
         if keyshares:
             observed.add("key_share_payload_bytes")
+            if 1 in types:
+                totals["client_key_share_payload_bytes"] += sum(keyshares)
+                observed.add("client_key_share_payload_bytes")
+            if 2 in types:
+                totals["server_key_share_payload_bytes"] += sum(keyshares)
+                observed.add("server_key_share_payload_bytes")
         if signatures and 15 in types:
             observed.add("certificate_verify_signature_bytes")
         handshake_types.update(types)
@@ -348,13 +356,27 @@ def analyze_pcap(
 
     server_latency = (
         (server_finished - client_hello) * 1000
-        if client_hello is not None and server_finished is not None
+        if client_hello is not None
+        and server_finished is not None
+        and server_finished >= client_hello
         else None
     )
     client_latency = (
         (client_finished - client_hello) * 1000
-        if client_hello is not None and client_finished is not None
+        if client_hello is not None
+        and client_finished is not None
+        and client_finished >= client_hello
         else None
+    )
+    server_latency_reason = (
+        "ClientHello and server Finished timestamps were not both decoded."
+        if client_hello is None or server_finished is None
+        else "Server Finished timestamp precedes ClientHello; capture timestamp ordering is invalid."
+    )
+    client_latency_reason = (
+        "ClientHello and client Finished timestamps were not both decoded."
+        if client_hello is None or client_finished is None
+        else "Client Finished timestamp precedes ClientHello; capture timestamp ordering is invalid."
     )
     full_handshake_verified = (
         server_certificate and server_certificate_verify and server_finished is not None
@@ -436,6 +458,30 @@ def analyze_pcap(
             ["Payload only; excludes extension, group and vector framing."],
         ),
         metric(
+            "client_key_share_payload_bytes",
+            (
+                totals["client_key_share_payload_bytes"]
+                if "client_key_share_payload_bytes" in observed
+                else None
+            ),
+            "bytes",
+            "No ClientHello key-share payload length was dissected.",
+            "Sum key-exchange vector lengths on decoded ClientHello messages.",
+            ["Payload only; excludes extension, group and vector framing."],
+        ),
+        metric(
+            "server_key_share_payload_bytes",
+            (
+                totals["server_key_share_payload_bytes"]
+                if "server_key_share_payload_bytes" in observed
+                else None
+            ),
+            "bytes",
+            "No ServerHello key-share payload length was dissected.",
+            "Sum key-exchange vector lengths on decoded ServerHello messages.",
+            ["Payload only; excludes extension, group and vector framing."],
+        ),
+        metric(
             "certificate_verify_signature_bytes",
             (
                 totals["certificate_verify_signature_bytes"]
@@ -451,7 +497,7 @@ def analyze_pcap(
             "clienthello_to_server_finished_ms",
             server_latency,
             "ms",
-            "ClientHello and server Finished timestamps were not both decoded.",
+            server_latency_reason,
             "Difference between first ClientHello and first server-direction Finished frame timestamps.",
             ["Capture timestamp interval, not endpoint processing time or one-way latency."],
         ),
@@ -459,7 +505,7 @@ def analyze_pcap(
             "clienthello_to_client_finished_ms",
             client_latency,
             "ms",
-            "ClientHello and client Finished timestamps were not both decoded.",
+            client_latency_reason,
             "Difference between first ClientHello and first client-direction Finished frame timestamps.",
             ["Capture timestamp interval; requires both Finished messages to be dissected."],
         ),
